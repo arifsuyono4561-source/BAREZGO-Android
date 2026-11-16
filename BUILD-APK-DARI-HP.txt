@@ -1,0 +1,19 @@
+PANDUAN BUILD APK BAREZGO DARI HP ANDROID (CLOUD BUILD)
+
+Cara ini memakai GitHub Actions. Kamu perlu akun GitHub.
+
+1. Ekstrak ZIP ini di HP menggunakan Files / ZArchiver.
+2. Buka https://github.com dan masuk/daftar akun.
+3. Buat repository baru bernama BAREZGO-Android. Pilih Private atau Public, lalu Create repository.
+4. Di browser, aktifkan Tampilan desktop bila perlu.
+5. Upload SEMUA ISI folder BAREZGO-Android ke repository, termasuk folder tersembunyi .github/workflows/android-apk.yml. Pastikan file build.gradle, settings.gradle, gradle.properties, dan folder app ada langsung di akar repository (bukan di dalam folder BAREZGO-Android lagi).
+6. Buka tab Actions. Jika diminta, pilih “I understand my workflows, go ahead and enable them”.
+7. Pilih workflow “Build BAREZGO APK”, tekan Run workflow, lalu Run workflow lagi.
+8. Tunggu sampai workflow selesai dengan tanda centang hijau.
+9. Buka hasil run tersebut, gulir ke Artifacts, unduh BAREZGO-debug-apk.
+10. Ekstrak ZIP artifact. Di dalamnya ada app-debug.apk. Ketuk untuk memasang.
+
+Jika Android memblokir instalasi, izinkan “Install unknown apps” hanya untuk aplikasi File Manager/browser yang kamu gunakan, lalu lanjutkan instalasi. Matikan izin itu kembali setelah selesai.
+
+CATATAN PRODUK:
+Versi 1.0 ini hanya mengunduh URL file video langsung yang bisa diakses dan memang diizinkan (contohnya MP4). Ini bukan downloader universal untuk semua situs; tidak melewati DRM, login, token, atau pembatasan platform. Pilihan resolusi saat ini berupa pilihan label, bukan ekstraksi kualitas otomatis dari halaman.
