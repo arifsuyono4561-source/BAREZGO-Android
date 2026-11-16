@@ -2,265 +2,276 @@
 package com.barezgo.downloader;
 
 import android.app.Activity;
-import android.app.DownloadManager;
-import android.content.ClipData;
-import android.content.ClipboardManager;
-import android.content.Context;
-import android.net.Uri;
 import android.os.Bundle;
-import android.os.Environment;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-import android.webkit.WebChromeClient;
-import android.widget.*;
+import android.os.Handler;
+import android.os.Looper;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.*;
+import org.json.JSONObject;
+import java.io.OutputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
 import java.net.URL;
 
 public class MainActivity extends Activity {
+
+    private static final String API =
+        "https://barezgo-api.arif-suyono4561.workers.dev";
+
     private EditText linkInput;
-    private Spinner qualitySpinner;
-    private WebView preview;
-    private TextView status;
+    private TextView resultText;
+    private Button detectButton;
+    private Handler handler = new Handler(Looper.getMainLooper());
 
-    private int dp(float v) {
-        return (int)(v * getResources().getDisplayMetrics().density);
-    }
-
-    private GradientDrawable shape(int color, int radius) {
-        GradientDrawable d = new GradientDrawable();
-        d.setColor(color);
-        d.setCornerRadius(dp(radius));
-        return d;
-    }
-
-    private TextView text(String value, int size, int color, boolean bold) {
-        TextView t = new TextView(this);
-        t.setText(value);
-        t.setTextSize(size);
-        t.setTextColor(color);
-        if (bold) t.setTypeface(null, Typeface.BOLD);
-        return t;
-    }
-
-    private Button button(String label) {
-        Button b = new Button(this);
-        b.setText(label);
-        b.setAllCaps(false);
-        b.setTextColor(Color.WHITE);
-        b.setBackground(shape(Color.rgb(28,116,145),14));
-        return b;
-    }
+    private int bg = Color.rgb(9, 16, 32);
+    private int panel = Color.rgb(20, 31, 52);
+    private int cyan = Color.rgb(0, 220, 220);
+    private int white = Color.WHITE;
 
     @Override
-    public void onCreate(Bundle saved) {
-        super.onCreate(saved);
-
-        getWindow().setStatusBarColor(Color.rgb(15,22,36));
-        getWindow().setNavigationBarColor(Color.rgb(15,22,36));
-
-        LinearLayout page = new LinearLayout(this);
-        page.setOrientation(LinearLayout.VERTICAL);
-        page.setPadding(dp(20),dp(18),dp(20),dp(18));
-        page.setBackgroundColor(Color.rgb(15,22,36));
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
 
         ScrollView scroll = new ScrollView(this);
-        scroll.addView(page);
+        scroll.setBackgroundColor(bg);
 
-        TextView brand = text("⬇ BAREZGO",27,Color.WHITE,true);
-        page.addView(brand);
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(24, 35, 24, 30);
 
-        TextView subtitle = text(
-            "Tempel tautan. Pratinjau. Simpan video.",
-            14,Color.rgb(184,198,218),false
-        );
-        page.addView(subtitle);
+        scroll.addView(root);
+
+        TextView logo = new TextView(this);
+        logo.setText("B  BAREZGO");
+        logo.setTextSize(30);
+        logo.setTextColor(cyan);
+        logo.setTypeface(null, Typeface.BOLD);
+        root.addView(logo);
+
+        TextView subtitle = new TextView(this);
+        subtitle.setText("VIDEO DOWNLOADER  •  VERSION 2.0");
+        subtitle.setTextColor(Color.LTGRAY);
+        subtitle.setTextSize(11);
+        subtitle.setPadding(0, 5, 0, 30);
+        root.addView(subtitle);
+
+        TextView heading = new TextView(this);
+        heading.setText("Download video favoritmu");
+        heading.setTextColor(white);
+        heading.setTextSize(23);
+        heading.setTypeface(null, Typeface.BOLD);
+        root.addView(heading);
+
+        TextView description = new TextView(this);
+        description.setText("Tempel tautan TikTok, Instagram, atau YouTube");
+        description.setTextColor(Color.LTGRAY);
+        description.setTextSize(13);
+        description.setPadding(0, 8, 0, 20);
+        root.addView(description);
 
         linkInput = new EditText(this);
         linkInput.setSingleLine(true);
-        linkInput.setTextColor(Color.WHITE);
+        linkInput.setHint("Tempel tautan video di sini...");
         linkInput.setHintTextColor(Color.GRAY);
-        linkInput.setHint("https://contoh.com/video.mp4");
-        linkInput.setPadding(dp(14),dp(12),dp(14),dp(12));
-        linkInput.setBackground(shape(Color.rgb(35,46,65),14));
-        page.addView(linkInput);
+        linkInput.setTextColor(white);
+        linkInput.setTextSize(14);
+        linkInput.setPadding(16, 15, 16, 15);
+        linkInput.setBackground(background(panel, 14));
+        root.addView(linkInput, match());
 
-        LinearLayout actions = new LinearLayout(this);
-        actions.setOrientation(LinearLayout.HORIZONTAL);
+        Button paste = new Button(this);
+        paste.setText("TEMPEL TAUTAN");
+        paste.setTextColor(cyan);
+        paste.setBackground(background(panel, 12));
+        LinearLayout.LayoutParams pasteParams = match();
+        pasteParams.topMargin = 12;
+        root.addView(paste, pasteParams);
 
-        Button paste = button("Tempel Link");
-        Button previewBtn = button("Pratinjau");
+        paste.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                android.content.ClipboardManager clipboard =
+                    (android.content.ClipboardManager)
+                    getSystemService(CLIPBOARD_SERVICE);
 
-        LinearLayout.LayoutParams half =
-            new LinearLayout.LayoutParams(0,-2,1);
-        half.setMargins(0,dp(10),dp(5),dp(8));
-        actions.addView(paste,half);
-
-        LinearLayout.LayoutParams half2 =
-            new LinearLayout.LayoutParams(0,-2,1);
-        half2.setMargins(dp(5),dp(10),0,dp(8));
-        actions.addView(previewBtn,half2);
-
-        page.addView(actions);
-
-        page.addView(text(
-            "Kualitas (jika tersedia dari tautan sumber)",
-            13,Color.rgb(184,198,218),true
-        ));
-
-        qualitySpinner = new Spinner(this);
-        String[] qualities = {
-            "Otomatis","360p","480p","720p","1080p"
-        };
-
-        ArrayAdapter<String> adapter =
-            new ArrayAdapter<>(
-                this,
-                android.R.layout.simple_spinner_dropdown_item,
-                qualities
-            );
-
-        qualitySpinner.setAdapter(adapter);
-        page.addView(qualitySpinner);
-
-        Button download = button("⬇ Download Video");
-        LinearLayout.LayoutParams dl =
-            new LinearLayout.LayoutParams(-1,-2);
-        dl.topMargin = dp(12);
-        page.addView(download,dl);
-
-        status = text(
-            "Siap. Tempel tautan video yang boleh diunduh.",
-            12,Color.rgb(184,198,218),false
-        );
-        page.addView(status);
-
-        TextView previewTitle =
-            text("PREVIEW",12,Color.rgb(92,225,230),true);
-        page.addView(previewTitle);
-
-        preview = new WebView(this);
-        preview.setBackgroundColor(Color.BLACK);
-        preview.getSettings().setJavaScriptEnabled(true);
-        preview.getSettings().setDomStorageEnabled(true);
-        preview.setWebViewClient(new WebViewClient());
-        preview.setWebChromeClient(new WebChromeClient());
-
-        page.addView(preview,new LinearLayout.LayoutParams(-1,dp(260)));
-
-        TextView note = text(
-            "BAREZGO versi awal mendukung tautan file video langsung. " +
-            "Situs dengan DRM atau proteksi unduhan tidak dapat diakali. " +
-            "Pilihan resolusi bergantung pada tautan yang tersedia.",
-            11,Color.rgb(160,174,196),false
-        );
-        page.addView(note);
-
-        setContentView(scroll);
-
-        paste.setOnClickListener(v -> {
-            ClipboardManager cm =
-                (ClipboardManager)getSystemService(
-                    Context.CLIPBOARD_SERVICE
-                );
-
-            if(cm != null && cm.hasPrimaryClip()) {
-                ClipData.Item item =
-                    cm.getPrimaryClip().getItemAt(0);
-
-                if(item != null && item.getText() != null) {
-                    linkInput.setText(item.getText().toString());
+                if (clipboard != null && clipboard.hasPrimaryClip()) {
+                    CharSequence value = clipboard.getPrimaryClip()
+                        .getItemAt(0).coerceToText(MainActivity.this);
+                    linkInput.setText(value);
                 }
-            } else {
-                Toast.makeText(
-                    this,"Clipboard kosong",Toast.LENGTH_SHORT
-                ).show();
             }
         });
 
-        previewBtn.setOnClickListener(v -> loadPreview());
-        download.setOnClickListener(v -> startDownload());
-    }
+        detectButton = new Button(this);
+        detectButton.setText("PERIKSA TAUTAN");
+        detectButton.setTextColor(bg);
+        detectButton.setTextSize(15);
+        detectButton.setTypeface(null, Typeface.BOLD);
+        detectButton.setBackground(background(cyan, 14));
 
-    private String validUrl() {
-        String s = linkInput.getText().toString().trim();
+        LinearLayout.LayoutParams buttonParams = match();
+        buttonParams.topMargin = 15;
+        root.addView(detectButton, buttonParams);
 
-        try {
-            URL u = new URL(s);
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(18, 20, 18, 20);
+        card.setBackground(background(panel, 16));
 
-            if(!"http".equalsIgnoreCase(u.getProtocol())
-                && !"https".equalsIgnoreCase(u.getProtocol())) {
-                return null;
+        LinearLayout.LayoutParams cardParams = match();
+        cardParams.topMargin = 25;
+        root.addView(card, cardParams);
+
+        TextView platformTitle = new TextView(this);
+        platformTitle.setText("PLATFORM DIDUKUNG");
+        platformTitle.setTextColor(cyan);
+        platformTitle.setTextSize(12);
+        platformTitle.setTypeface(null, Typeface.BOLD);
+        card.addView(platformTitle);
+
+        TextView platforms = new TextView(this);
+        platforms.setText("TikTok     •     Instagram     •     YouTube");
+        platforms.setTextColor(white);
+        platforms.setTextSize(14);
+        platforms.setPadding(0, 14, 0, 10);
+        card.addView(platforms);
+
+        resultText = new TextView(this);
+        resultText.setText("Status: Siap menerima tautan");
+        resultText.setTextColor(Color.LTGRAY);
+        resultText.setTextSize(14);
+        resultText.setPadding(0, 20, 0, 5);
+        card.addView(resultText);
+
+        TextView footer = new TextView(this);
+        footer.setText("BAREZGO  •  Powered by Cloudflare");
+        footer.setTextColor(Color.GRAY);
+        footer.setGravity(Gravity.CENTER);
+        footer.setTextSize(11);
+        footer.setPadding(0, 35, 0, 0);
+        root.addView(footer);
+
+        detectButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                detectLink();
             }
+        });
 
-            return s;
-        } catch(Exception e) {
-            return null;
-        }
+        setContentView(scroll);
     }
 
-    private void loadPreview() {
-        String url = validUrl();
+    private void detectLink() {
+        final String link = linkInput.getText().toString().trim();
 
-        if(url == null) {
-            status.setText("Masukkan URL http/https yang valid.");
+        if (link.isEmpty()) {
+            resultText.setText("Masukkan tautan terlebih dahulu.");
             return;
         }
 
-        preview.loadUrl(url);
-        status.setText("Membuka pratinjau...");
-    }
-
-    private void startDownload() {
-        final String url = validUrl();
-
-        if(url == null) {
-            status.setText("Masukkan URL yang valid.");
+        if (!link.startsWith("https://") &&
+            !link.startsWith("http://")) {
+            resultText.setText("Tautan tidak valid.");
             return;
         }
 
-        String path = "";
+        detectButton.setEnabled(false);
+        resultText.setText("Menghubungkan ke BAREZGO API...");
 
-        try {
-            path = new URL(url).getPath();
-        } catch(Exception ignored) {}
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                HttpURLConnection connection = null;
 
-        String name = path.substring(path.lastIndexOf('/')+1);
+                try {
+                    URL url = new URL(API + "/api/detect");
+                    connection = (HttpURLConnection) url.openConnection();
+                    connection.setRequestMethod("POST");
+                    connection.setConnectTimeout(15000);
+                    connection.setReadTimeout(15000);
+                    connection.setDoOutput(true);
+                    connection.setRequestProperty(
+                        "Content-Type", "application/json");
 
-        if(name.isEmpty() || !name.contains(".")) {
-            name = "BAREZGO_video.mp4";
-        }
+                    JSONObject body = new JSONObject();
+                    body.put("url", link);
 
-        try {
-            DownloadManager.Request req =
-                new DownloadManager.Request(Uri.parse(url));
+                    OutputStream output = connection.getOutputStream();
+                    output.write(body.toString().getBytes("UTF-8"));
+                    output.close();
 
-            req.setTitle(name);
-            req.setDescription("Diunduh melalui BAREZGO");
-            req.setNotificationVisibility(
-                DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
-            );
+                    BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(
+                            connection.getInputStream(), "UTF-8"));
 
-            req.setDestinationInExternalPublicDir(
-                Environment.DIRECTORY_DOWNLOADS,
-                "BAREZGO/"+name
-            );
+                    StringBuilder response = new StringBuilder();
+                    String line;
 
-            req.setAllowedOverMetered(true);
-            req.setAllowedOverRoaming(false);
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
+                    }
+                    reader.close();
 
-            DownloadManager dm =
-                (DownloadManager)getSystemService(DOWNLOAD_SERVICE);
+                    final JSONObject data =
+                        new JSONObject(response.toString());
 
-            dm.enqueue(req);
+                    final String platform =
+                        data.optString("platform", "unknown");
 
-            status.setText(
-                "Download dimulai. Periksa folder Download/BAREZGO."
-            );
+                    final boolean detected =
+                        data.optBoolean("detected", false);
 
-        } catch(Exception e) {
-            status.setText("Gagal memulai download. Periksa tautan video.");
-        }
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (detected) {
+                                resultText.setText(
+                                    "Platform terdeteksi: " +
+                                    platform.toUpperCase() +
+                                    "\n\nTautan berhasil diperiksa.\n" +
+                                    "Pengambilan media belum tersedia.");
+                            } else {
+                                resultText.setText(
+                                    "Platform tidak dikenali.");
+                            }
+                            detectButton.setEnabled(true);
+                        }
+                    });
+
+                } catch (final Exception e) {
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            resultText.setText(
+                                "Gagal menghubungkan API.\n" +
+                                "Periksa koneksi internet.");
+                            detectButton.setEnabled(true);
+                        }
+                    });
+                } finally {
+                    if (connection != null) {
+                        connection.disconnect();
+                    }
+                }
+            }
+        }).start();
+    }
+
+    private GradientDrawable background(int color, int radius) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(color);
+        drawable.setCornerRadius(radius);
+        return drawable;
+    }
+
+    private LinearLayout.LayoutParams match() {
+        return new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT);
     }
 }
