@@ -1,7 +1,7 @@
 
 export default {
   async fetch(request) {
-    const corsHeaders = {
+    const cors = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type"
@@ -11,13 +11,13 @@ export default {
       new Response(JSON.stringify(data), {
         status,
         headers: {
-          ...corsHeaders,
+          ...cors,
           "Content-Type": "application/json"
         }
       });
 
     if (request.method === "OPTIONS") {
-      return new Response(null, { headers: corsHeaders });
+      return new Response(null, { headers: cors });
     }
 
     const url = new URL(request.url);
@@ -25,7 +25,7 @@ export default {
     if (url.pathname === "/") {
       return json({
         app: "BAREZGO API",
-        version: "2.0",
+        version: "2.1",
         status: "online"
       });
     }
@@ -34,31 +34,76 @@ export default {
       return json({ status: "ok" });
     }
 
-    if (url.pathname === "/api/detect" && request.method === "POST") {
+    if (url.pathname === "/api/detect" &&
+        request.method === "POST") {
       let body;
 
       try {
         body = await request.json();
       } catch {
-        return json({ error: "Invalid JSON" }, 400);
+        return json({ error: "JSON tidak valid" }, 400);
       }
 
-      const link = String(body.url || "");
+      let input;
 
+      try {
+        input = new URL(String(body.url || ""));
+      } catch {
+        return json({ error: "Tautan tidak valid" }, 400);
+      }
+
+      if (input.protocol !== "https:" &&
+          input.protocol !== "http:") {
+        return json({ error: "Protokol tidak didukung" }, 400);
+      }
+
+      const host = input.hostname.toLowerCase();
       let platform = "unsupported";
+      let title = "Platform tidak didukung";
+      let detail = "Gunakan tautan dari platform yang didukung.";
+      let action = "Tidak tersedia";
 
-      if (/tiktok\.com/i.test(link)) platform = "tiktok";
-      else if (/instagram\.com/i.test(link)) platform = "instagram";
-      else if (/youtube\.com|youtu\.be/i.test(link)) platform = "youtube";
+      if (host === "tiktok.com" ||
+          host.endsWith(".tiktok.com")) {
+        platform = "tiktok";
+        title = "Video TikTok terdeteksi";
+        detail =
+          "Buka video di TikTok. Gunakan fitur Simpan video jika diizinkan kreator.";
+        action = "Buka TikTok";
+      } else if (
+        host === "instagram.com" ||
+        host.endsWith(".instagram.com")
+      ) {
+        platform = "instagram";
+        title = "Konten Instagram terdeteksi";
+        detail =
+          "Buka konten di Instagram. Gunakan opsi unduh resmi jika tersedia.";
+        action = "Buka Instagram";
+      } else if (
+        host === "youtube.com" ||
+        host.endsWith(".youtube.com") ||
+        host === "youtu.be"
+      ) {
+        platform = "youtube";
+        title = "Video YouTube terdeteksi";
+        detail =
+          "Tonton melalui YouTube. Unduhan offline mengikuti fitur resmi YouTube.";
+        action = "Buka YouTube";
+      }
 
       return json({
         app: "BAREZGO",
+        version: "2.1",
         platform,
         detected: platform !== "unsupported",
-        message: "Link berhasil diperiksa. Media belum diproses."
+        title,
+        message: detail,
+        action,
+        originalUrl: input.toString(),
+        downloadAvailable: false
       });
     }
 
-    return json({ error: "Endpoint not found" }, 404);
+    return json({ error: "Endpoint tidak ditemukan" }, 404);
   }
 };
