@@ -2,9 +2,9 @@
 package com.barezgo.downloader;
 
 import android.app.Activity;
+import android.app.DownloadManager;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
+import android.os.Environment;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -15,416 +15,245 @@ import android.content.Intent;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.net.Uri;
+import android.webkit.URLUtil;
 import android.widget.*;
 
-import org.json.JSONObject;
-
-import java.io.OutputStream;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
-
 public class MainActivity extends Activity {
-
-    private static final String API =
-        "https://barezgo-api.arif-suyono4561.workers.dev";
 
     private EditText linkInput;
     private TextView resultText;
     private Button detectButton;
+    private Button downloadButton;
     private Button openButton;
-
     private String lastUrl = "";
 
-    private final Handler handler =
-        new Handler(Looper.getMainLooper());
-
-    private final int bg = Color.rgb(9, 16, 32);
-    private final int panel = Color.rgb(20, 31, 52);
-    private final int cyan = Color.rgb(0, 220, 220);
-    private final int white = Color.WHITE;
+    private final int bg = Color.rgb(9,16,32);
+    private final int panel = Color.rgb(20,31,52);
+    private final int cyan = Color.rgb(0,220,220);
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+    protected void onCreate(Bundle state) {
+        super.onCreate(state);
 
-        Window window = getWindow();
-        window.setStatusBarColor(bg);
-        window.setNavigationBarColor(bg);
-
-        if (android.os.Build.VERSION.SDK_INT >= 30) {
-            window.setDecorFitsSystemWindows(true);
-        }
-
-        ScrollView scroll = new ScrollView(this);
-        scroll.setBackgroundColor(bg);
-        scroll.setFillViewport(true);
-        scroll.setFitsSystemWindows(true);
+        getWindow().setStatusBarColor(bg);
+        getWindow().setNavigationBarColor(bg);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(16), dp(18), dp(16), dp(30));
-        root.setFitsSystemWindows(true);
+        root.setPadding(dp(18),dp(25),dp(18),dp(25));
+        root.setBackgroundColor(bg);
 
+        ScrollView scroll = new ScrollView(this);
         scroll.addView(root);
 
         TextView logo = new TextView(this);
         logo.setText("B  BAREZGO");
-        logo.setTextSize(29);
         logo.setTextColor(cyan);
-        logo.setTypeface(null, Typeface.BOLD);
+        logo.setTextSize(29);
+        logo.setTypeface(null,Typeface.BOLD);
         root.addView(logo);
 
-        TextView subtitle = new TextView(this);
-        subtitle.setText("VIDEO DOWNLOADER  •  VERSION 2.1");
-        subtitle.setTextColor(Color.LTGRAY);
-        subtitle.setTextSize(12);
-        subtitle.setPadding(0, dp(5), 0, dp(24));
-        root.addView(subtitle);
-
         TextView heading = new TextView(this);
-        heading.setText("Download video favoritmu");
-        heading.setTextColor(white);
+        heading.setText("Video Downloader");
+        heading.setTextColor(Color.WHITE);
         heading.setTextSize(23);
-        heading.setTypeface(null, Typeface.BOLD);
+        heading.setTypeface(null,Typeface.BOLD);
+        heading.setPadding(0,dp(20),0,dp(8));
         root.addView(heading);
 
-        TextView description = new TextView(this);
-        description.setText(
-            "Tempel tautan TikTok, Instagram, atau YouTube"
-        );
-        description.setTextColor(Color.LTGRAY);
-        description.setTextSize(14);
-        description.setPadding(0, dp(8), 0, dp(18));
-        root.addView(description);
+        TextView info = new TextView(this);
+        info.setText("Unduh file video langsung atau periksa tautan sosial media.");
+        info.setTextColor(Color.LTGRAY);
+        info.setTextSize(14);
+        root.addView(info);
 
         linkInput = new EditText(this);
         linkInput.setSingleLine(true);
-        linkInput.setHint("Tempel tautan video di sini...");
+        linkInput.setHint("Tempel tautan video...");
         linkInput.setHintTextColor(Color.GRAY);
-        linkInput.setTextColor(white);
-        linkInput.setTextSize(15);
-        linkInput.setPadding(
-            dp(14), dp(13), dp(14), dp(13)
-        );
-        linkInput.setBackground(background(panel, 12));
-        root.addView(linkInput, match());
+        linkInput.setTextColor(Color.WHITE);
+        linkInput.setPadding(dp(12),dp(12),dp(12),dp(12));
+        linkInput.setBackground(background(panel,12));
 
-        Button pasteButton = new Button(this);
-        pasteButton.setText("TEMPEL TAUTAN");
-        pasteButton.setTextColor(cyan);
-        pasteButton.setBackground(background(panel, 12));
+        LinearLayout.LayoutParams p = match();
+        p.topMargin = dp(20);
+        root.addView(linkInput,p);
 
-        LinearLayout.LayoutParams pasteParams = match();
-        pasteParams.topMargin = dp(10);
-        root.addView(pasteButton, pasteParams);
+        Button paste = makeButton("TEMPEL TAUTAN",panel,cyan);
+        p = match();
+        p.topMargin = dp(10);
+        root.addView(paste,p);
 
-        pasteButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                ClipboardManager clipboard =
-                    (ClipboardManager) getSystemService(
-                        CLIPBOARD_SERVICE
-                    );
-
-                if (clipboard != null &&
-                    clipboard.hasPrimaryClip()) {
-
-                    ClipData clip = clipboard.getPrimaryClip();
-
-                    if (clip != null && clip.getItemCount() > 0) {
-                        CharSequence value =
-                            clip.getItemAt(0).coerceToText(
-                                MainActivity.this
-                            );
-
-                        linkInput.setText(value);
-                    }
+        paste.setOnClickListener(v -> {
+            ClipboardManager cb = (ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+            if(cb != null && cb.hasPrimaryClip()) {
+                ClipData clip = cb.getPrimaryClip();
+                if(clip != null && clip.getItemCount() > 0) {
+                    linkInput.setText(clip.getItemAt(0).coerceToText(this));
                 }
             }
         });
 
-        detectButton = new Button(this);
-        detectButton.setText("PERIKSA TAUTAN");
-        detectButton.setTextColor(bg);
-        detectButton.setTextSize(15);
-        detectButton.setTypeface(null, Typeface.BOLD);
-        detectButton.setBackground(background(cyan, 12));
+        detectButton = makeButton("PERIKSA TAUTAN",cyan,bg);
+        p = match();
+        p.topMargin = dp(10);
+        root.addView(detectButton,p);
 
-        LinearLayout.LayoutParams detectParams = match();
-        detectParams.topMargin = dp(12);
-        root.addView(detectButton, detectParams);
+        downloadButton = makeButton("UNDUH FILE VIDEO",cyan,bg);
+        p = match();
+        p.topMargin = dp(10);
+        root.addView(downloadButton,p);
+        downloadButton.setVisibility(View.GONE);
 
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(
-            dp(14), dp(16), dp(14), dp(16)
-        );
-        card.setBackground(background(panel, 14));
-
-        LinearLayout.LayoutParams cardParams = match();
-        cardParams.topMargin = dp(18);
-        root.addView(card, cardParams);
-
-        TextView platformTitle = new TextView(this);
-        platformTitle.setText("PLATFORM DIDUKUNG");
-        platformTitle.setTextColor(cyan);
-        platformTitle.setTextSize(13);
-        platformTitle.setTypeface(null, Typeface.BOLD);
-        card.addView(platformTitle);
-
-        TextView platforms = new TextView(this);
-        platforms.setText(
-            "TikTok     •     Instagram     •     YouTube"
-        );
-        platforms.setTextColor(white);
-        platforms.setTextSize(15);
-        platforms.setPadding(0, dp(12), 0, dp(10));
-        card.addView(platforms);
+        openButton = makeButton("BUKA DI APLIKASI RESMI",panel,cyan);
+        p = match();
+        p.topMargin = dp(10);
+        root.addView(openButton,p);
+        openButton.setVisibility(View.GONE);
 
         resultText = new TextView(this);
         resultText.setText("Status: Siap menerima tautan");
-        resultText.setTextColor(Color.LTGRAY);
+        resultText.setTextColor(Color.WHITE);
         resultText.setTextSize(14);
-        resultText.setPadding(0, dp(12), 0, dp(8));
-        card.addView(resultText);
-
-        openButton = new Button(this);
-        openButton.setText("BUKA DI APLIKASI RESMI");
-        openButton.setTextColor(bg);
-        openButton.setTextSize(14);
-        openButton.setTypeface(null, Typeface.BOLD);
-        openButton.setBackground(background(cyan, 12));
-        openButton.setVisibility(View.GONE);
-
-        LinearLayout.LayoutParams openParams = match();
-        openParams.topMargin = dp(10);
-        card.addView(openButton, openParams);
-
-        openButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                openOfficialLink();
-            }
-        });
+        resultText.setPadding(0,dp(22),0,dp(15));
+        root.addView(resultText);
 
         TextView footer = new TextView(this);
-        footer.setText("BAREZGO  •  Powered by Cloudflare");
+        footer.setText("BAREZGO • VIDEO DOWNLOADER");
         footer.setTextColor(Color.GRAY);
         footer.setGravity(Gravity.CENTER);
-        footer.setTextSize(12);
-        footer.setPadding(0, dp(28), 0, 0);
+        footer.setPadding(0,dp(30),0,0);
         root.addView(footer);
 
-        detectButton.setOnClickListener(
-            new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    detectLink();
-                }
-            }
-        );
+        detectButton.setOnClickListener(v -> checkLink());
+        downloadButton.setOnClickListener(v -> downloadFile());
+        openButton.setOnClickListener(v -> openLink());
 
         setContentView(scroll);
     }
 
-    private void detectLink() {
-        final String link =
-            linkInput.getText().toString().trim();
+    private void checkLink() {
+        String link = linkInput.getText().toString().trim();
 
-        if (link.isEmpty()) {
-            resultText.setText(
-                "Masukkan tautan terlebih dahulu."
-            );
-            openButton.setVisibility(View.GONE);
+        if(link.isEmpty()) {
+            resultText.setText("Masukkan tautan terlebih dahulu.");
             return;
         }
 
-        if (!link.startsWith("https://") &&
-            !link.startsWith("http://")) {
+        if(!link.startsWith("https://") && !link.startsWith("http://")) {
             resultText.setText("Format tautan tidak valid.");
-            openButton.setVisibility(View.GONE);
             return;
         }
 
         lastUrl = link;
-        detectButton.setEnabled(false);
-        openButton.setVisibility(View.GONE);
 
-        resultText.setText("Menghubungkan ke BAREZGO API...");
+        if(isDirectMedia(link)) {
+            resultText.setText("File media langsung terdeteksi. Tekan tombol unduh.");
+            downloadButton.setVisibility(View.VISIBLE);
+            openButton.setVisibility(View.GONE);
+            return;
+        }
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                HttpURLConnection connection = null;
+        downloadButton.setVisibility(View.GONE);
+        openButton.setVisibility(View.VISIBLE);
 
-                try {
-                    URL url = new URL(API + "/api/detect");
+        String host = Uri.parse(link).getHost();
+        String platform = "Tautan web";
 
-                    connection =
-                        (HttpURLConnection) url.openConnection();
+        if(host != null) {
+            host = host.toLowerCase();
+            if(host.contains("tiktok.com")) platform = "TikTok";
+            else if(host.contains("instagram.com")) platform = "Instagram";
+            else if(host.contains("youtube.com") || host.contains("youtu.be")) platform = "YouTube";
+        }
 
-                    connection.setRequestMethod("POST");
-                    connection.setConnectTimeout(15000);
-                    connection.setReadTimeout(15000);
-                    connection.setDoOutput(true);
-
-                    connection.setRequestProperty(
-                        "Content-Type", "application/json"
-                    );
-
-                    JSONObject body = new JSONObject();
-                    body.put("url", link);
-
-                    OutputStream output =
-                        connection.getOutputStream();
-
-                    output.write(
-                        body.toString().getBytes("UTF-8")
-                    );
-                    output.close();
-
-                    int status = connection.getResponseCode();
-
-                    java.io.InputStream stream =
-                        status >= 200 && status < 300
-                        ? connection.getInputStream()
-                        : connection.getErrorStream();
-
-                    if (stream == null) {
-                        throw new Exception("Respons API kosong");
-                    }
-
-                    BufferedReader reader =
-                        new BufferedReader(
-                            new InputStreamReader(stream, "UTF-8")
-                        );
-
-                    StringBuilder response =
-                        new StringBuilder();
-
-                    String line;
-
-                    while ((line = reader.readLine()) != null) {
-                        response.append(line);
-                    }
-
-                    reader.close();
-
-                    if (status < 200 || status >= 300) {
-                        throw new Exception(
-                            "API memberikan status " + status
-                        );
-                    }
-
-                    final JSONObject data =
-                        new JSONObject(response.toString());
-
-                    final String platform =
-                        data.optString("platform", "unknown");
-
-                    final boolean detected =
-                        data.optBoolean("detected", false);
-
-                    final String title =
-                        data.optString(
-                            "title", "Tautan diperiksa."
-                        );
-
-                    final String message =
-                        data.optString(
-                            "message", "Tidak ada informasi."
-                        );
-
-                    final String action =
-                        data.optString(
-                            "action", "Tidak tersedia"
-                        );
-
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (detected) {
-                                resultText.setText(
-                                    "Platform terdeteksi: " +
-                                    platform.toUpperCase() +
-                                    "\n\n" + title +
-                                    "\n\n" + message +
-                                    "\n\nTindakan: " + action
-                                );
-
-                                openButton.setVisibility(
-                                    View.VISIBLE
-                                );
-                            } else {
-                                resultText.setText(
-                                    "Platform tidak dikenali.\n\n" +
-                                    message
-                                );
-
-                                openButton.setVisibility(
-                                    View.GONE
-                                );
-                            }
-
-                            detectButton.setEnabled(true);
-                        }
-                    });
-
-                } catch (final Exception e) {
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            resultText.setText(
-                                "Gagal memeriksa tautan.\n\n" +
-                                e.getMessage()
-                            );
-
-                            openButton.setVisibility(View.GONE);
-                            detectButton.setEnabled(true);
-                        }
-                    });
-
-                } finally {
-                    if (connection != null) {
-                        connection.disconnect();
-                    }
-                }
-            }
-        }).start();
+        resultText.setText(
+            platform + " terdeteksi.\n\n" +
+            "Gunakan fitur unduhan resmi platform jika tersedia."
+        );
     }
 
-    private void openOfficialLink() {
-        if (lastUrl.isEmpty()) {
+    private boolean isDirectMedia(String link) {
+        try {
+            String path = Uri.parse(link).getPath();
+            if(path == null) return false;
+            path = path.toLowerCase();
+
+            String[] ext = {
+                ".mp4",".m4v",".webm",".mov",".mkv",
+                ".mp3",".m4a",".aac",".ogg",".wav"
+            };
+
+            for(String e : ext) {
+                if(path.endsWith(e)) return true;
+            }
+        } catch(Exception ignored) {}
+        return false;
+    }
+
+    private void downloadFile() {
+        if(lastUrl.isEmpty() || !isDirectMedia(lastUrl)) {
+            resultText.setText("Tautan media langsung tidak valid.");
             return;
         }
 
         try {
-            Intent intent = new Intent(
-                Intent.ACTION_VIEW,
-                Uri.parse(lastUrl)
+            String filename = URLUtil.guessFileName(lastUrl,null,"video.mp4");
+
+            DownloadManager.Request request =
+                new DownloadManager.Request(Uri.parse(lastUrl));
+
+            request.setTitle("BAREZGO: " + filename);
+            request.setDescription("Mengunduh file media");
+            request.setNotificationVisibility(
+                DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
+            );
+            request.setAllowedOverMetered(true);
+            request.setAllowedOverRoaming(false);
+            request.setDestinationInExternalPublicDir(
+                Environment.DIRECTORY_DOWNLOADS,filename
             );
 
-            startActivity(intent);
+            DownloadManager manager =
+                (DownloadManager)getSystemService(DOWNLOAD_SERVICE);
 
-        } catch (Exception e) {
+            if(manager == null) throw new Exception("Download Manager tidak tersedia");
+
+            manager.enqueue(request);
+
             resultText.setText(
-                "Tidak dapat membuka tautan."
+                "Unduhan dimulai!\n\nFile: " + filename +
+                "\nPeriksa notifikasi atau folder Download."
             );
+
+        } catch(Exception e) {
+            resultText.setText("Gagal mengunduh: " + e.getMessage());
         }
     }
 
-    private GradientDrawable background(
-        int color, int radius
-    ) {
-        GradientDrawable drawable =
-            new GradientDrawable();
+    private void openLink() {
+        if(lastUrl.isEmpty()) return;
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(lastUrl)));
+        } catch(Exception e) {
+            resultText.setText("Tidak dapat membuka tautan.");
+        }
+    }
 
-        drawable.setColor(color);
-        drawable.setCornerRadius(dp(radius));
+    private Button makeButton(String text,int color,int textColor) {
+        Button b = new Button(this);
+        b.setText(text);
+        b.setTextColor(textColor);
+        b.setTypeface(null,Typeface.BOLD);
+        b.setBackground(background(color,12));
+        return b;
+    }
 
-        return drawable;
+    private GradientDrawable background(int color,int radius) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(dp(radius));
+        return d;
     }
 
     private LinearLayout.LayoutParams match() {
@@ -435,9 +264,6 @@ public class MainActivity extends Activity {
     }
 
     private int dp(int value) {
-        return (int) (
-            value * getResources()
-                .getDisplayMetrics().density + 0.5f
-        );
+        return (int)(value * getResources().getDisplayMetrics().density + 0.5f);
     }
 }
