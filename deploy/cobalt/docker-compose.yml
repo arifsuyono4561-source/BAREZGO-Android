@@ -1,0 +1,14 @@
+services:
+  cobalt:
+    image: ghcr.io/imputnet/cobalt:11
+    init: true
+    read_only: true
+    restart: unless-stopped
+    container_name: barezgo-cobalt
+    ports:
+      - "127.0.0.1:9000:9000/tcp"
+    environment:
+      API_URL: "${COBALT_PUBLIC_URL}"
+      RATELIMIT_MAX: "20"
+      RATELIMIT_WINDOW: "60"
+      DURATION_LIMIT: "10800"
